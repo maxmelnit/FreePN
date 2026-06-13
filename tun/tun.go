@@ -17,17 +17,17 @@ const (
 	tun = "/dev/net/tun"
 )
 
-func OpenTUN() (*os.File, error) {
+func OpenTUN(tunnelName string) (string, string) {
 
 	// Try opening the tun path accesses the virtual interface
 	fd, err := os.OpenFile(tun, os.O_RDWR, 0)
 	if err != nil {
-		return nil, err
+		return "", err.Error()
 	}
 
 	// Kernel written in C, so we need to mimic ifreq struct used to configure network interface, which is 40 bytes long
 	var ifreq [40]byte
-	copy(ifreq[:16], "freepn-tun") // First 16 bytes is char ifr_name
+	copy(ifreq[:16], tunnelName) // First 16 bytes is char ifr_name
 	*(*uint16)(unsafe.Pointer(&ifreq[16])) = unix.IFF_TUN | unix.IFF_NO_PI
 
 	// Make system call to create the interface
@@ -39,7 +39,10 @@ func OpenTUN() (*os.File, error) {
 	)
 
 	if errno != 0 {
-		fd.close()
+		fd.Close()
+		return "", errno.Error()
 	}
+
+	return "TUN initialized", ""
 
 }
