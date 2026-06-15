@@ -17,16 +17,16 @@ const (
 	tun = "/dev/net/tun"
 )
 
-func OpenTUN(tunnelName string) (string, string) {
+func OpenTUN(tunnelName string) (*os.File, error) {
 
 	// Try opening the tun path accesses the virtual interface
 	fd, err := os.OpenFile(tun, os.O_RDWR, 0)
 	if err != nil {
-		return "", err.Error()
+		return nil, err
 	}
 
-	// Kernel written in C, so we need to mimic ifreq struct used to configure network interface, which is 40 bytes long
-	var ifreq [40]byte
+	// Kernel written in C and there isn't an ifreq wrapper, so we need to mimic ifreq struct used to configure network interface
+	var ifreq [40]byte           // ifreq struct is 40 bytes
 	copy(ifreq[:16], tunnelName) // First 16 bytes is char ifr_name
 	*(*uint16)(unsafe.Pointer(&ifreq[16])) = unix.IFF_TUN | unix.IFF_NO_PI
 
@@ -40,9 +40,9 @@ func OpenTUN(tunnelName string) (string, string) {
 
 	if errno != 0 {
 		fd.Close()
-		return "", errno.Error()
+		return nil, errno
 	}
 
-	return "TUN initialized", ""
+	return fd, nil
 
 }

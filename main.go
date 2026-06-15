@@ -3,27 +3,22 @@
 package main
 
 import (
-	"fmt"
 	"freepn/tun"
+	"log"
 )
 
 func main() {
-	fmt.Println("Booting FreePN...")
-	
+	log.Println("Booting FreePN...")
+
 	// Configure TUN
 	res, err := tun.OpenTUN("freepn-tun")
 
-	if err != "" {
-		fmt.Println(err)
+	if err != nil {
+		log.Fatal("There was a problem creating the virtual interface: ", err)
 	} else {
-		fmt.Println(res)
+		log.Println("Virtual interface created")
 	}
 
-	// Authenticate
-
-
-
-
-
+	// Authenticate with diffie-hellman key exchange
 
 }
