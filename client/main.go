@@ -19,6 +19,5 @@ func main() {
 		log.Println("Virtual interface created")
 	}
 
-	// Authenticate with diffie-hellman key exchange
-
+	// Authenticate with JWT, then Diffie-Hellman
 }
