@@ -78,7 +78,8 @@ func GenKeyPair() (*ecdh.PrivateKey, *ecdh.PublicKey, error) {
 	return privateKey, publicKey, nil
 }
 
-func KeyExchange(clientPrivateKey *ecdh.PrivateKey, serverPublicKey *ecdh.PublicKey) ([]byte, error) {
+// Generates the shared secret between the client and server
+func GenSharedSecret(clientPrivateKey *ecdh.PrivateKey, serverPublicKey *ecdh.PublicKey) ([]byte, error) {
 
 	shared, err := clientPrivateKey.ECDH(serverPublicKey)
 
