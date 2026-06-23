@@ -92,3 +92,4 @@ func GenSharedSecret(clientPrivateKey *ecdh.PrivateKey, serverPublicKey *ecdh.Pu
 	sha := sha256.Sum256(shared)
 	return sha[:], nil
 }
+

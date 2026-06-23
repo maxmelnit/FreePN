@@ -3,7 +3,7 @@
 package main
 
 import (
-	"freepn/tun"
+	"freepn/client/tun"
 	"log"
 )
 

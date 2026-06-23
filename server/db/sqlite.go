@@ -1,13 +1,15 @@
 package db
 
 import (
+	"log"
 	"database/sql"
-
 	_ "modernc.org/sqlite"
 )
 
+
 func MakeDB() (*sql.DB, error) {
-	// Using SQLite as number of users won't be many. Just for added security.
+
+	// Using SQLite to store authorized users
 	db, err := sql.Open("sqlite", "./data/freepn.db")
 	if err != nil {
 		return nil, err
@@ -44,17 +46,79 @@ func AddAuthorizedUser(user string, hashedPassword string, db *sql.DB) error {
 	return nil
 }
 
-func UpdateUserPassword(user string, newPassword string, db *sql.DB) error {
+func UpdateUserPassword(user string, newHashedPassword string, db *sql.DB) error {
 
 	run := `UPDATE authorized_users
 			SET password = ?
 			WHERE id = ?`
 
-	_, err := db.Exec(run, newPassword, user)
+	_, err := db.Exec(run, newHashedPassword, user)
 
 	if err != nil {
+		log.Println("Error occured updating user password for '" + user + "': " + err.Error())
 		return err
 	}
 
 	return nil
+}
+
+
+func RemoveUser(user string, db *sql.DB) error {
+	
+	run := `DELETE FROM authorized_users
+			WHERE id = ?`
+
+	_, err := db.Exec(run)
+
+	if err != nil {
+		log.Println("Error occurred deleting user '" + user + "' from database: " + err.Error())
+		return err
+	}
+
+	return nil
+}
+
+
+func GetUsers(db *sql.DB) (*sql.Rows, error) {
+
+	run := `SELECT * FROM authorized_users`
+	
+	res, err := db.Query(run)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+
+func ExistsUser(user string, db *sql.DB) (bool, error) {
+
+	run := `SELECT EXISTS(SELECT 1 FROM authorized_users
+			WHERE id = ?
+			)`
+
+	_, err := db.Query(run, user)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+
+func GetPasswordHash(user string, db *sql.DB) (string, error) {
+
+	run := `SELECT password FROM authorized_users
+			WHERE id = ?`
+
+	res, err := db.Query(run, user)
+
+	if err != nil {
+		return "", nil
+	}
+
+	return res, nil
 }
