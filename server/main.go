@@ -1,13 +1,13 @@
 package main
 
 import (
-	"os"
-	"log"
-	"fmt"
 	"bufio"
-	"strings"
-	"server/db"
+	"fmt"
+	"log"
+	"os"
 	"server/auth"
+	"server/db"
+	"strings"
 )
 
 func main() {
@@ -28,7 +28,6 @@ func main() {
 	log.SetOutput(file)
 
 	log.Println("Booting FreePN server...")
-	fmt.Println("Booting FreePN server...")
 
 	// Try to make a user database if it doesn't exist
 	database, err := db.MakeDB()
@@ -36,24 +35,27 @@ func main() {
 		log.Fatal("Error creating user database: " + err.Error())
 	}
 
-
-	dbUsers, err := db.GetUsers(database) 
+	dbUsers, err := db.GetUsers(database)
 	if err != nil {
 		log.Fatal("Could not fetch database users: " + err.Error())
 	}
+	defer dbUsers.Close()
 
 	// If the database is empty, prompt the user to create a new user
 	if !dbUsers.Next() {
-		fmt.Println("There are currently no authorized VPN users configured. [Y] to configure, [N] to exit.")
+		fmt.Println("There are currently no authorized users configured. [Y] to configure, [N] to exit.")
+		scanner.Scan()
 		res := scanner.Text()
 
-		if strings.ToLower(res) == "Y"{
+		if strings.ToLower(res) == "y" {
 
 			fmt.Println("Set a user ID:")
+			scanner.Scan()
 			id = scanner.Text()
 			fmt.Println("Set a password:")
-
+			scanner.Scan()
 			password, err = auth.HashedPassword(scanner.Text())
+
 			if err != nil {
 				log.Fatal("Error configuring user password: " + err.Error())
 			}
@@ -65,23 +67,18 @@ func main() {
 				log.Fatal("Could not add user " + id + " to list of authorized users: " + err.Error())
 			}
 
-			fmt.Println("User created. Ready.")
+			fmt.Println("User created with id: '" + id + "'")
 		} else {
 			log.Fatal("User cancelled user creation. Exiting.")
 		}
 	}
 
+	fmt.Println("Options:\n1. Add a new user\n2. Remove an existing user\n3. View all users\n4. Start FreePN")
+	scanner.Scan()
+	res := scanner.Text()
 
+	if res == "4" {
 
-
-
-
-	
-
-
-	
-
-
-
+	}
 
 }
