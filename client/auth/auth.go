@@ -4,8 +4,12 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"log"
 )
 
@@ -93,3 +97,20 @@ func GenSharedSecret(clientPrivateKey *ecdh.PrivateKey, serverPublicKey *ecdh.Pu
 	return sha[:], nil
 }
 
+// GenCSR Makes a Certificate Signing Request. Used to apply for a certificate granted by the certificate authority
+func GenCSR(username string) (*ecdsa.PrivateKey, []byte) {
+
+	// Client private key
+	pKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	// Template CSR struct with username identifying the client
+	csrTemplate := &x509.CertificateRequest{
+		Subject: pkix.Name{CommonName: username},
+	}
+
+	// Make the actual request with the user's private key
+	csrBytes, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, pKey)
+
+	// Private key used to prove identity to server later on
+	return pKey, csrBytes
+}
