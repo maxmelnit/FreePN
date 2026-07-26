@@ -1,9 +1,13 @@
 package auth
 
 import (
+	"bytes"
+	"client/transport"
 	"crypto/aes"
 	"crypto/cipher"
 	"log"
+	"net"
+	"os"
 )
 
 func Encrypt(key []byte, data []byte) ([]byte, error) {
@@ -55,4 +59,21 @@ func Decrypt(key []byte, data []byte) ([]byte, error) {
 	}
 
 	return res, nil
+}
+
+// AuthServerKey Check if the server we're establishing a connection with is the real one
+func AuthServerKey(conn *net.UDPConn) bool {
+
+	expected := os.Getenv("SERVER_PUB")
+
+	// Pop the first packet from the channel
+	channel := transport.ReceiveUDP(conn)
+	actual := <-channel
+
+	if !bytes.Equal([]byte(expected), actual) {
+		log.Println("Server public key mismatch")
+		return false
+	}
+
+	return true
 }
