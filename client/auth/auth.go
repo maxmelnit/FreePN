@@ -3,13 +3,6 @@ package auth
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/ecdh"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"log"
 )
 
@@ -62,55 +55,4 @@ func Decrypt(key []byte, data []byte) ([]byte, error) {
 	}
 
 	return res, nil
-}
-
-// Generate the private + public keys
-func GenKeyPair() (*ecdh.PrivateKey, *ecdh.PublicKey, error) {
-
-	// Using the X25519 elliptic curve
-	curve := ecdh.X25519()
-	privateKey, err := curve.GenerateKey(rand.Reader)
-
-	if err != nil {
-		log.Println("Error generating private key: " + err.Error())
-		return nil, nil, err
-	}
-
-	// Pub key derived from priv key
-	publicKey := privateKey.PublicKey()
-
-	return privateKey, publicKey, nil
-}
-
-// Generates the shared secret between the client and server
-func GenSharedSecret(clientPrivateKey *ecdh.PrivateKey, serverPublicKey *ecdh.PublicKey) ([]byte, error) {
-
-	shared, err := clientPrivateKey.ECDH(serverPublicKey)
-
-	if err != nil {
-		log.Println("Diffie-Hellman key exchange failed: " + err.Error())
-		return nil, err
-	}
-
-	// Just for some extra security, we can make the shared key a SHA-256 hash
-	sha := sha256.Sum256(shared)
-	return sha[:], nil
-}
-
-// GenCSR Makes a Certificate Signing Request. Used to apply for a certificate granted by the certificate authority
-func GenCSR(username string) (*ecdsa.PrivateKey, []byte) {
-
-	// Client private key
-	pKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-
-	// Template CSR struct with username identifying the client
-	csrTemplate := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: username},
-	}
-
-	// Make the actual request with the user's private key
-	csrBytes, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, pKey)
-
-	// Private key used to prove identity to server later on
-	return pKey, csrBytes
 }
