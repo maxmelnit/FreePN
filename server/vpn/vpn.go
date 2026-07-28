@@ -19,7 +19,7 @@ func LaunchFreePN() {
 	defer serverConn.Close()
 
 	// When connection is established with client, authenticate that client
-	res, err := auth.AuthClientKey(serverConn)
+	res, clientPublicKey, err := auth.AuthClientKey(serverConn)
 
 	// Failed auth
 	if err != nil || !res {
@@ -27,8 +27,18 @@ func LaunchFreePN() {
 	}
 
 	// Diffie-Hellman key exchange
+	sharedSecret := auth.DHKeyExchange(clientPublicKey)
 
 	// Listen for incoming packets
-	packetChannel := transport.ReceiveUDP(serverConn)
+	packetChan := transport.ReceiveUDP(serverConn)
+
+	// Decrypt each packet received in the channel
+	for packet := range packetChan {
+		decryptedPacket, _ := auth.Decrypt(sharedSecret, packet)
+
+		// Get decrypted packet IP
+		decryptedPacketIP := transport.GetIPDest(decryptedPacket)
+
+	}
 
 }
