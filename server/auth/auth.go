@@ -53,6 +53,7 @@ func AuthClientKey(conn *net.UDPConn) (bool, error) {
 
 	// Check if the client's public key matches an authorized key in the config
 	if slices.Contains(config.ClientID, string(packet)) {
+		log.Println("Client authenticated")
 		return true, nil
 	}
 
