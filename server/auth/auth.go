@@ -6,10 +6,10 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	"os"
-	"server/transport"
 	"slices"
 
 	"golang.org/x/crypto/bcrypt"
@@ -79,7 +79,7 @@ func Decrypt(key []byte, data []byte) ([]byte, error) {
 }
 
 // AuthClientKey Lets the server authenticate that the connected client is authorized
-func AuthClientKey(conn *net.UDPConn) (bool, []byte, error) {
+func AuthClientKey(conn *net.UDPConn) (bool, []byte, *net.UDPAddr, error) {
 
 	// Multiple clients can be connected
 	type ClientConfig struct {
@@ -91,7 +91,7 @@ func AuthClientKey(conn *net.UDPConn) (bool, []byte, error) {
 
 	if err != nil {
 		log.Println("Error reading config file: " + err.Error())
-		return false, nil, err
+		return false, nil, nil, err
 	}
 
 	var config ClientConfig
@@ -99,20 +99,24 @@ func AuthClientKey(conn *net.UDPConn) (bool, []byte, error) {
 
 	if err != nil {
 		log.Println("Error parsing config file: " + err.Error())
-		return false, nil, err
+		return false, nil, nil, err
 	}
 
-	// Get first packet received from channel (the clients public key), as part of initial handshake
-	channel := transport.ReceiveUDP(conn)
-	packet := <-channel
+	// Client key is X25519, which is 32 bytes long
+	buffer := make([]byte, 32)
 
-	// Check if the client's public key matches an authorized key in the config
-	if slices.Contains(config.ClientID, string(packet)) {
-		log.Println("Client authenticated")
-		return true, packet, nil
+	// Read UDP data and store in buffer
+	n, addr, err := conn.ReadFromUDP(buffer)
+	if err != nil {
+		return false, nil, nil, err
 	}
 
-	return false, nil, nil
+	// Check if client key is in the allowlist
+	if !slices.Contains(config.ClientID, string(buffer[:n])) {
+		return false, nil, nil, errors.New("client public key not in allowlist")
+	}
+
+	return true, buffer[:n], addr, nil
 }
 
 // DHKeyExchange Used to determine secret key between client and server

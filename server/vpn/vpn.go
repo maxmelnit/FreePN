@@ -1,14 +1,23 @@
+//go:build Linux
 package vpn
 
 import (
 	"server/auth"
 	"server/transport"
+	"server/tun"
 )
 
 // PORT to start server on
 var PORT string = ":55555"
 
 func LaunchFreePN() {
+
+	// Open TUN server side
+	fd, err := tun.OpenTUN()
+
+	if err != nil {
+		log.Println("Error opening tunnel: " + err.Error())
+	}
 
 	// Start the server
 	serverConn, err := transport.StartServer(PORT)
@@ -32,12 +41,10 @@ func LaunchFreePN() {
 	// Listen for incoming packets
 	packetChan := transport.ReceiveUDP(serverConn)
 
-	// Decrypt each packet received in the channel
-	for packet := range packetChan {
-		decryptedPacket, _ := auth.Decrypt(sharedSecret, packet)
-
-		// Get decrypted packet IP
-		decryptedPacketIP := transport.GetIPDest(decryptedPacket)
+	
+	go func() {
+		transport.
+	}()
 
 	}
 
