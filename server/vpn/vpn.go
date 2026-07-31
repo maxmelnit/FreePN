@@ -1,7 +1,9 @@
 //go:build Linux
+
 package vpn
 
 import (
+	"log"
 	"server/auth"
 	"server/transport"
 	"server/tun"
@@ -13,7 +15,7 @@ var PORT string = ":55555"
 func LaunchFreePN() {
 
 	// Open TUN server side
-	fd, err := tun.OpenTUN()
+	fd, err := tun.OpenTUN("server-tun")
 
 	if err != nil {
 		log.Println("Error opening tunnel: " + err.Error())
@@ -28,23 +30,69 @@ func LaunchFreePN() {
 	defer serverConn.Close()
 
 	// When connection is established with client, authenticate that client
-	res, clientPublicKey, err := auth.AuthClientKey(serverConn)
+	isAllowed, clientPublicKey, clientAddr, err := auth.AuthClientKey(serverConn)
 
 	// Failed auth
-	if err != nil || !res {
+	if err != nil || !isAllowed {
 		return
 	}
 
 	// Diffie-Hellman key exchange
 	sharedSecret := auth.DHKeyExchange(clientPublicKey)
 
-	// Listen for incoming packets
-	packetChan := transport.ReceiveUDP(serverConn)
-
-	
+	// Goroutine helps prevent blocking during reading
 	go func() {
-		transport.
+
+		// Buffer to hold incoming packet data (includes some buffer for overhead)
+		buffer := make([]byte, 2048)
+
+		for {
+			n, addr, err := serverConn.ReadFromUDP(buffer)
+			if err != nil {
+				log.Println("Error reading from client: " + err.Error())
+				return
+			}
+
+			// If the packets aren't coming from the authenticated client address
+			if addr.String() != clientAddr.String() {
+				log.Println("Client address mismatch")
+				continue
+			}
+
+			packet, err := auth.Decrypt(sharedSecret, buffer[:n])
+			if err != nil {
+				log.Println("Packet decryption error: " + err.Error())
+				continue
+			}
+
+			res, err := tun.Write(packet)
+			if err != nil {
+				log.Println("Error writing packet to TUN: " + err.Error())
+				return
+			}
+
+		}
 	}()
+
+	// Now, server TUN relays data back to the client
+
+	writeBuffer := make([]byte, 2048)
+	for {
+		n, err := fd.Read(writeBuffer)
+		if err != nil {
+			log.Println("Error reading from TUN: " + err.Error())
+		}
+
+		encrypted, err := auth.Encrypt(sharedSecret, writeBuffer[:n])
+		if err != nil {
+			log.Println("Error encrypting packet: " + err.Error())
+			continue
+		}
+
+		err := serverConn.WriteToUDP(encrypted, clientAddr)
+		if err != nil {
+			log.Println("Error writing to client: " + err.Error())
+		}
 
 	}
 
