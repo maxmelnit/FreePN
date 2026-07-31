@@ -120,16 +120,17 @@ func AuthClientKey(conn *net.UDPConn) (bool, []byte, *net.UDPAddr, error) {
 }
 
 // DHKeyExchange Used to determine secret key between client and server
-func DHKeyExchange(clientPublicKey []byte) []byte {
+func DHKeyExchange(clientPublicKey []byte) ([]byte, []byte) {
 
 	curve := ecdh.X25519()
 	serverPrivate, _ := curve.GenerateKey(rand.Reader)
+	serverPublic := serverPrivate.PublicKey().Bytes()
 
 	clientPubBytes, _ := curve.NewPublicKey(clientPublicKey)
 
 	// Shared secret derived from server private key + client public key
 	sharedSecret, _ := serverPrivate.ECDH(clientPubBytes)
 
-	return sharedSecret
+	return sharedSecret, serverPublic
 
 }

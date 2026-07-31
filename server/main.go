@@ -1,3 +1,5 @@
+//go:build linux
+
 package main
 
 import (
@@ -7,6 +9,7 @@ import (
 	"os"
 	"server/auth"
 	"server/db"
+	"server/vpn"
 	"strings"
 )
 
@@ -78,7 +81,7 @@ func main() {
 	res := scanner.Text()
 
 	if res == "4" {
-
+		vpn.LaunchFreePN()
 	}
 
 }

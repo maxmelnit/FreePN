@@ -1,11 +1,11 @@
 package db
 
 import (
-	"log"
 	"database/sql"
+	"log"
+
 	_ "modernc.org/sqlite"
 )
-
 
 func MakeDB() (*sql.DB, error) {
 
@@ -18,7 +18,7 @@ func MakeDB() (*sql.DB, error) {
 	// Table of authorized VPN users
 	run := `CREATE TABLE IF NOT EXISTS authorized_users (
 		id TEXT NOT NULL PRIMARY KEY,
-		password TEXT NOT NULL
+		password TEXT NOT NULL,
 		is_first_login BOOLEAN DEFAULT TRUE
 	)`
 
@@ -62,9 +62,8 @@ func UpdateUserPassword(user string, newHashedPassword string, db *sql.DB) error
 	return nil
 }
 
-
 func RemoveUser(user string, db *sql.DB) error {
-	
+
 	run := `DELETE FROM authorized_users
 			WHERE id = ?`
 
@@ -78,11 +77,10 @@ func RemoveUser(user string, db *sql.DB) error {
 	return nil
 }
 
-
 func GetUsers(db *sql.DB) (*sql.Rows, error) {
 
 	run := `SELECT * FROM authorized_users`
-	
+
 	res, err := db.Query(run)
 
 	if err != nil {
@@ -91,7 +89,6 @@ func GetUsers(db *sql.DB) (*sql.Rows, error) {
 
 	return res, nil
 }
-
 
 func ExistsUser(user string, db *sql.DB) (bool, error) {
 
@@ -108,17 +105,20 @@ func ExistsUser(user string, db *sql.DB) (bool, error) {
 	return true, nil
 }
 
+func GetPasswordHash(
+	user string,
+	db *sql.DB,
+) (string, error) {
+	run := `SELECT password
+            FROM authorized_users
+            WHERE id = ?`
 
-func GetPasswordHash(user string, db *sql.DB) (string, error) {
+	var passwordHash string
 
-	run := `SELECT password FROM authorized_users
-			WHERE id = ?`
-
-	res, err := db.Query(run, user)
-
+	err := db.QueryRow(run, user).Scan(&passwordHash)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
-	return res, nil
+	return passwordHash, nil
 }

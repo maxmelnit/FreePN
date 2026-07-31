@@ -1,4 +1,4 @@
-//go:build Linux
+//go:build linux
 
 package vpn
 
@@ -19,7 +19,9 @@ func LaunchFreePN() {
 
 	if err != nil {
 		log.Println("Error opening tunnel: " + err.Error())
+		return
 	}
+	defer fd.Close()
 
 	// Start the server
 	serverConn, err := transport.StartServer(PORT)
@@ -38,7 +40,13 @@ func LaunchFreePN() {
 	}
 
 	// Diffie-Hellman key exchange
-	sharedSecret := auth.DHKeyExchange(clientPublicKey)
+	sharedSecret, serverPublicKey := auth.DHKeyExchange(clientPublicKey)
+
+	// Send the client the server public key for authentication
+	_, err = serverConn.WriteToUDP(serverPublicKey, clientAddr)
+	if err != nil {
+		return
+	}
 
 	// Goroutine helps prevent blocking during reading
 	go func() {
@@ -75,12 +83,12 @@ func LaunchFreePN() {
 	}()
 
 	// Now, server TUN relays data back to the client
-
 	writeBuffer := make([]byte, 2048)
 	for {
 		n, err := fd.Read(writeBuffer)
 		if err != nil {
 			log.Println("Error reading from TUN: " + err.Error())
+			return
 		}
 
 		encrypted, err := auth.Encrypt(sharedSecret, writeBuffer[:n])
