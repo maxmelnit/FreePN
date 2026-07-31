@@ -65,7 +65,7 @@ func LaunchFreePN() {
 				continue
 			}
 
-			res, err := tun.Write(packet)
+			_, err := fd.Write(packet)
 			if err != nil {
 				log.Println("Error writing packet to TUN: " + err.Error())
 				return
@@ -89,7 +89,7 @@ func LaunchFreePN() {
 			continue
 		}
 
-		err := serverConn.WriteToUDP(encrypted, clientAddr)
+		_, err := serverConn.WriteToUDP(encrypted, clientAddr)
 		if err != nil {
 			log.Println("Error writing to client: " + err.Error())
 		}
