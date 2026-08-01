@@ -19,7 +19,7 @@ func main() {
 	var id string
 	var password string
 
-	file, err := os.OpenFile("../logs/server.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	file, err := os.OpenFile("./logs/server.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 
 	if err != nil {
 		log.Fatal("Error opening server log file: " + err.Error())
@@ -37,6 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Error creating user database: " + err.Error())
 	}
+	defer database.Close()
 
 	dbUsers, err := db.GetUsers(database)
 	if err != nil {
@@ -81,7 +82,10 @@ func main() {
 	res := scanner.Text()
 
 	if res == "4" {
-		vpn.LaunchFreePN()
+		err := vpn.LaunchFreePN()
+		if err != nil {
+			log.Fatal("Error launching FreePN server: " + err.Error())
+		}
 	}
 
 }

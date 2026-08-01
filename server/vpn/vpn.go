@@ -12,14 +12,14 @@ import (
 // PORT to start server on
 var PORT string = ":55555"
 
-func LaunchFreePN() {
+func LaunchFreePN() error {
 
 	// Open TUN server side
 	fd, err := tun.OpenTUN("server-tun")
 
 	if err != nil {
 		log.Println("Error opening tunnel: " + err.Error())
-		return
+		return err
 	}
 	defer fd.Close()
 
@@ -27,25 +27,35 @@ func LaunchFreePN() {
 	serverConn, err := transport.StartServer(PORT)
 
 	if err != nil {
-		return
+		return err
 	}
 	defer serverConn.Close()
+
+	// Get the server's private key
+	serverPrivateKey, err := auth.LoadOrCreateServerKey("./keys/server.key")
+	if err != nil {
+		return err
+	}
 
 	// When connection is established with client, authenticate that client
 	isAllowed, clientPublicKey, clientAddr, err := auth.AuthClientKey(serverConn)
 
 	// Failed auth
 	if err != nil || !isAllowed {
-		return
+		return err
 	}
 
 	// Diffie-Hellman key exchange
-	sharedSecret, serverPublicKey := auth.DHKeyExchange(clientPublicKey)
+	sharedSecret, err := auth.DHKeyExchange(serverPrivateKey, clientPublicKey)
+	if err != nil {
+		return err
+	}
 
-	// Send the client the server public key for authentication
+	// Send the raw server public key to the client.
+	serverPublicKey := serverPrivateKey.PublicKey().Bytes()
 	_, err = serverConn.WriteToUDP(serverPublicKey, clientAddr)
 	if err != nil {
-		return
+		return err
 	}
 
 	// Goroutine helps prevent blocking during reading
@@ -73,7 +83,7 @@ func LaunchFreePN() {
 				continue
 			}
 
-			_, err := fd.Write(packet)
+			_, err = fd.Write(packet)
 			if err != nil {
 				log.Println("Error writing packet to TUN: " + err.Error())
 				return
@@ -88,7 +98,7 @@ func LaunchFreePN() {
 		n, err := fd.Read(writeBuffer)
 		if err != nil {
 			log.Println("Error reading from TUN: " + err.Error())
-			return
+			return err
 		}
 
 		encrypted, err := auth.Encrypt(sharedSecret, writeBuffer[:n])
@@ -97,7 +107,7 @@ func LaunchFreePN() {
 			continue
 		}
 
-		_, err := serverConn.WriteToUDP(encrypted, clientAddr)
+		_, err = serverConn.WriteToUDP(encrypted, clientAddr)
 		if err != nil {
 			log.Println("Error writing to client: " + err.Error())
 		}
