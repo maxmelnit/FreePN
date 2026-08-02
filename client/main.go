@@ -3,20 +3,15 @@
 package main
 
 import (
-	"freepn/client/tun"
+	"client/vpn"
 	"log"
 )
 
 func main() {
 	log.Println("Booting FreePN...")
-
-	// Configure TUN
-	res, err := tun.OpenTUN("freepn-tun")
-
+	err := vpn.LaunchClient()
 	if err != nil {
-		log.Fatal("There was a problem creating the virtual interface: ", err)
-	} else {
-		log.Println("Virtual interface created")
+		log.Fatal("FreePN client stopped: " + err.Error())
 	}
 
 	// Authenticate with JWT, then Diffie-Hellman

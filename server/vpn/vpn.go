@@ -3,6 +3,7 @@
 package vpn
 
 import (
+	"errors"
 	"log"
 	"server/auth"
 	"server/transport"
@@ -41,8 +42,11 @@ func LaunchFreePN() error {
 	isAllowed, clientPublicKey, clientAddr, err := auth.AuthClientKey(serverConn)
 
 	// Failed auth
-	if err != nil || !isAllowed {
+	if err != nil {
 		return err
+	}
+	if !isAllowed {
+		return errors.New("client public key not in allowlist")
 	}
 
 	// Diffie-Hellman key exchange

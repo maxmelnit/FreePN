@@ -194,10 +194,7 @@ func LoadOrCreateServerKey(filename string) (*ecdh.PrivateKey, error) {
 }
 
 // DHKeyExchange Used to determine secret key between client and server
-func DHKeyExchange(
-	serverPrivateKey *ecdh.PrivateKey,
-	clientPublicKeyBytes []byte,
-) ([]byte, error) {
+func DHKeyExchange(serverPrivateKey *ecdh.PrivateKey, clientPublicKeyBytes []byte) ([]byte, error) {
 	curve := ecdh.X25519()
 
 	if len(clientPublicKeyBytes) != 32 {

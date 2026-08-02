@@ -1,15 +1,18 @@
 package auth
 
 import (
-	"bytes"
-	"client/transport"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 )
 
 func Encrypt(key []byte, data []byte) ([]byte, error) {
@@ -63,41 +66,136 @@ func Decrypt(key []byte, data []byte) ([]byte, error) {
 	return res, nil
 }
 
-// AuthServerKey Check if the server we're establishing a connection with is the real one
-func AuthServerKey(conn *net.UDPConn) (bool, error) {
+// AuthServerKey Lets the server authenticate that the connected client is authorized
+func AuthServerKey(conn *net.UDPConn) (bool, []byte, error) {
 
-	// JSON server config
+	// Multiple clients can be connected
 	type ServerConfig struct {
-		ServerPublicKey string `json:"server_public_key"`
+		ServerID string `json:"server_public_key"`
 	}
 
-	res, err := os.ReadFile("./config.json")
-
+	data, err := os.ReadFile("./config.json")
 	if err != nil {
-		log.Println("Error reading config.json: " + err.Error())
-		return false, err
+		log.Println("Error reading config file: " + err.Error())
+		return false, nil, err
 	}
 
-	// Unmarshal -> Put JSON info into server public key struct
 	var config ServerConfig
-	err = json.Unmarshal(res, &config)
+	err = json.Unmarshal(data, &config)
 
 	if err != nil {
-		log.Println("Error parsing config.json: " + err.Error())
-		return false, err
+		log.Println("Error parsing config file: " + err.Error())
+		return false, nil, err
 	}
 
-	// The server public key embedded
-	expected := config.ServerPublicKey
+	// Server key is X25519, which is 32 bytes long
+	buffer := make([]byte, 32)
 
-	// Pop the first packet from the channel
-	channel := transport.ReceiveUDP(conn)
-	actual := <-channel
-
-	if !bytes.Equal([]byte(expected), actual) {
-		log.Println("Server public key mismatch")
-		return false, errors.New("server public key mismatch")
+	// Read UDP data and store in buffer
+	n, _, err := conn.ReadFromUDP(buffer)
+	if err != nil {
+		return false, nil, err
 	}
 
-	return true, nil
+	if n != 32 {
+		log.Println("Client key is not 32 bytes long")
+		return false, nil, errors.New("invalid client key, not 32 bytes long")
+	}
+
+	// We receive bytes from the server, so convert it to base64
+	receivedKeyBase64 := base64.StdEncoding.EncodeToString(buffer[:n])
+
+	// Check if server key is in the allowlist
+	if !(config.ServerID == receivedKeyBase64) {
+		return false, nil, errors.New("client public key not in allowlist")
+	}
+
+	return true, buffer[:n], nil
+}
+
+// LoadOrCreateClientKey Loads the server key from the file, or generates a new one
+func LoadOrCreateClientKey(filename string) (*ecdh.PrivateKey, error) {
+	curve := ecdh.X25519()
+
+	savedKey, err := os.ReadFile(filename)
+	if err == nil {
+		if len(savedKey) != 32 {
+			return nil, fmt.Errorf(
+				"invalid client private key length: %d",
+				len(savedKey),
+			)
+		}
+
+		privateKey, err := curve.NewPrivateKey(savedKey)
+		if err != nil {
+			return nil, fmt.Errorf("load client private key: %w", err)
+		}
+
+		return privateKey, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read client private key: %w", err)
+	}
+
+	privateKey, err := curve.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate client private key: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+		return nil, fmt.Errorf("create client key directory: %w", err)
+	}
+
+	keyFile, err := os.OpenFile(
+		filename,
+		os.O_WRONLY|os.O_CREATE|os.O_EXCL,
+		0600,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create client key file: %w", err)
+	}
+
+	if _, err := keyFile.Write(privateKey.Bytes()); err != nil {
+		_ = keyFile.Close()
+		return nil, fmt.Errorf("save client private key: %w", err)
+	}
+
+	if err := keyFile.Close(); err != nil {
+		return nil, fmt.Errorf("close client key file: %w", err)
+	}
+
+	publicKeyBase64 := base64.StdEncoding.EncodeToString(
+		privateKey.PublicKey().Bytes(),
+	)
+
+	fmt.Println("New client key created.")
+	fmt.Println("Add this public key to the client configuration:")
+	fmt.Println(publicKeyBase64)
+
+	return privateKey, nil
+}
+
+// DHKeyExchange Used to determine secret key between client and server
+func DHKeyExchange(clientPrivateKey *ecdh.PrivateKey, serverPublicKeyBytes []byte) ([]byte, error) {
+	curve := ecdh.X25519()
+
+	if len(serverPublicKeyBytes) != 32 {
+		return nil, fmt.Errorf(
+			"invalid client public key length: %d",
+			len(serverPublicKeyBytes),
+		)
+	}
+
+	clientPublicKey, err := curve.NewPublicKey(serverPublicKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse client public key: %w", err)
+	}
+
+	sharedSecret, err := clientPrivateKey.ECDH(clientPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive shared secret: %w", err)
+	}
+
+	return sharedSecret, nil
 }
