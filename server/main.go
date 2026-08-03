@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,32 @@ import (
 )
 
 func main() {
+
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: freepn [init|run]")
+		return
+	}
+
+	if os.Args[1] == "init" {
+		serverPrivateKey, err :=
+			auth.LoadOrCreateServerKey("./keys/server.key")
+		if err != nil {
+			log.Fatal("Failed to initialize server key: " + err.Error())
+		}
+
+		publicKey := base64.StdEncoding.EncodeToString(
+			serverPrivateKey.PublicKey().Bytes(),
+		)
+
+		fmt.Println("Server public key:", publicKey)
+		fmt.Println("Add this to client/config.json under server_public_key.")
+		return
+	}
+
+	if os.Args[1] != "run" {
+		fmt.Println("Unknown command:", os.Args[1])
+		return
+	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	var id string
