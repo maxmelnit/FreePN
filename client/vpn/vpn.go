@@ -10,7 +10,9 @@ import (
 	"net"
 )
 
-var SERVER string = "40.13.49.29:55555"
+var SERVER string = "40.233.106.54:55555"
+
+const udpBufferSize = 4 * 1024 * 1024
 
 // LaunchClient launches the client-side of the VPN
 func LaunchClient() error {
@@ -38,6 +40,16 @@ func LaunchClient() error {
 		return err
 	}
 	defer serverConn.Close()
+
+	err = serverConn.SetReadBuffer(udpBufferSize)
+	if err != nil {
+		return err
+	}
+
+	err = serverConn.SetWriteBuffer(udpBufferSize)
+	if err != nil {
+		return err
+	}
 
 	// Send the raw client public key to the server
 	clientPublicKey := clientPrivateKey.PublicKey().Bytes()

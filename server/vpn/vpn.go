@@ -8,10 +8,13 @@ import (
 	"server/auth"
 	"server/transport"
 	"server/tun"
+	"sync"
 )
 
 // PORT to start server on
 var PORT string = ":55555"
+
+const udpBufferSize = 4 * 1024 * 1024
 
 func LaunchFreePN() error {
 
@@ -26,11 +29,20 @@ func LaunchFreePN() error {
 
 	// Start the server
 	serverConn, err := transport.StartServer(PORT)
-
 	if err != nil {
 		return err
 	}
 	defer serverConn.Close()
+
+	err = serverConn.SetReadBuffer(udpBufferSize)
+	if err != nil {
+		return err
+	}
+
+	err = serverConn.SetWriteBuffer(udpBufferSize)
+	if err != nil {
+		return err
+	}
 
 	// Get the server's private key
 	serverPrivateKey, err := auth.LoadOrCreateServerKey("./keys/server.key")
@@ -48,6 +60,8 @@ func LaunchFreePN() error {
 	if !isAllowed {
 		return errors.New("client public key not in allowlist")
 	}
+
+	var clientAddrMu sync.RWMutex
 
 	// Diffie-Hellman key exchange
 	sharedSecret, err := auth.DHKeyExchange(serverPrivateKey, clientPublicKey)
@@ -75,17 +89,23 @@ func LaunchFreePN() error {
 				return
 			}
 
-			// If the packets aren't coming from the authenticated client address
-			if addr.String() != clientAddr.String() {
-				log.Println("Client address mismatch")
-				continue
-			}
-
 			packet, err := auth.Decrypt(sharedSecret, buffer[:n])
 			if err != nil {
 				log.Println("Packet decryption error: " + err.Error())
 				continue
 			}
+
+			// Only trust the new address after successful decryption.
+			clientAddrMu.Lock()
+			if addr.String() != clientAddr.String() {
+				log.Printf(
+					"Authenticated client address changed: %s -> %s",
+					clientAddr,
+					addr,
+				)
+			}
+			clientAddr = addr
+			clientAddrMu.Unlock()
 
 			_, err = fd.Write(packet)
 			if err != nil {
@@ -111,7 +131,11 @@ func LaunchFreePN() error {
 			continue
 		}
 
-		_, err = serverConn.WriteToUDP(encrypted, clientAddr)
+		clientAddrMu.RLock()
+		destination := clientAddr
+		clientAddrMu.RUnlock()
+
+		_, err = serverConn.WriteToUDP(encrypted, destination)
 		if err != nil {
 			log.Println("Error writing to client: " + err.Error())
 		}
