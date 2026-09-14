@@ -13,30 +13,28 @@ import (
 )
 
 type Config struct {
-	host string `json:server_address`
-	port string `json:server_port`
+	Host string `json:"server_address"`
+	Port string `json:"server_port"`
 }
 
 const udpBufferSize = 4 * 1024 * 1024
 
-// LaunchClient launches the client-side of the VPN
 func LaunchClient() error {
 
-	// Load config.json information
-	var Config config
-	json_data, err := os.ReadFile("./config.json")
+	var cfg Config
+	jsonData, err := os.ReadFile("./config.json")
 	if err != nil {
 		return err
 	}
-	err := json.Unmarshal(json_data, &Config)
+	err = json.Unmarshal(jsonData, &cfg)
 	if err != nil {
 		return err
 	}
 
-	host := Config.host
-	port := Config.port
+	host := cfg.Host
+	port := cfg.Port
 
-	log.Println("Found server in configuration file. Connecting to: " + Config.host + ":" + Config.port)
+	log.Println("Found server in configuration file. Connecting to: " + host + ":" + port)
 
 	// Open TUN
 	fd, err := tun.OpenTUN("client-tun")
