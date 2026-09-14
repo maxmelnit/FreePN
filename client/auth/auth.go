@@ -15,55 +15,26 @@ import (
 	"path/filepath"
 )
 
-func Encrypt(key []byte, data []byte) ([]byte, error) {
-
-	// Make a unique cipher block
+func NewPacketCipher(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
-
 	if err != nil {
-		log.Println("Could not initialize cipher block: " + err.Error())
-		return nil, err
+		return nil, fmt.Errorf("initialize AES: %w", err)
 	}
 
-	// GCM: Make into stream cipher + add tamper prevention (tag and nonce)
 	gcm, err := cipher.NewGCMWithRandomNonce(block)
-
 	if err != nil {
-		log.Println("Could not wrap AES in GCM: " + err.Error())
-		return nil, err
+		return nil, fmt.Errorf("initialize AES-GCM: %w", err)
 	}
 
-	// Encrypt and return the data
-	encrypted := gcm.Seal(nil, nil, data, nil)
-
-	return encrypted, nil
-
+	return gcm, nil
 }
 
-func Decrypt(key []byte, data []byte) ([]byte, error) {
+func Encrypt(gcm cipher.AEAD, data []byte) []byte {
+	return gcm.Seal(nil, nil, data, nil)
+}
 
-	block, err := aes.NewCipher(key)
-
-	if err != nil {
-		log.Println("Could not initialize cipher block: " + err.Error())
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCMWithRandomNonce(block)
-
-	if err != nil {
-		log.Println("Could not wrap AES in GCM: " + err.Error())
-		return nil, err
-	}
-
-	res, err := gcm.Open(nil, nil, data, nil)
-
-	if err != nil {
-		log.Println("Error decrypting data: " + err.Error())
-		return nil, err
-	}
-
-	return res, nil
+func Decrypt(gcm cipher.AEAD, data []byte) ([]byte, error) {
+	return gcm.Open(nil, nil, data, nil)
 }
 
 // AuthServerKey Lets the server authenticate that the connected client is authorized

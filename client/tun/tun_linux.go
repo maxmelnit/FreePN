@@ -7,15 +7,50 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	// Ethernet maximum transmission unit is 1500 bytes
-	MTU = 1500
+	// Having MTU at 1444 puts us at exactly 1500 bytes after all overhead (encryption, UDP headers, etc)
+	MTU = 1444
 	// Linux tun path
 	tun = "/dev/net/tun"
 )
+
+// Configures the TUN interface with the specified tunnel name, specified address and maximum transferable unit size
+func ConfigureTUN(
+	tunnelName string,
+	address string,
+	mtu int,
+) error {
+	link, err := netlink.LinkByName(tunnelName)
+	if err != nil {
+		return err
+	}
+
+	tunnelAddress, err := netlink.ParseAddr(address)
+	if err != nil {
+		return err
+	}
+
+	err = netlink.AddrReplace(link, tunnelAddress)
+	if err != nil {
+		return err
+	}
+
+	err = netlink.LinkSetMTU(link, mtu)
+	if err != nil {
+		return err
+	}
+
+	err = netlink.LinkSetUp(link)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func OpenTUN(tunnelName string) (*os.File, error) {
 	rawFD, err := unix.Open(

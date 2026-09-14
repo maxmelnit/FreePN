@@ -27,6 +27,16 @@ func LaunchFreePN() error {
 	}
 	defer fd.Close()
 
+	// Configure TUN
+	err = tun.ConfigureTUN(
+		"server-tun",
+		"10.8.0.1/24",
+		tun.MTU,
+	)
+	if err != nil {
+		return err
+	}
+
 	// Start the server
 	serverConn, err := transport.StartServer(PORT)
 	if err != nil {
@@ -69,6 +79,16 @@ func LaunchFreePN() error {
 		return err
 	}
 
+	encryptCipher, err := auth.NewPacketCipher(sharedSecret)
+	if err != nil {
+		return err
+	}
+
+	decryptCipher, err := auth.NewPacketCipher(sharedSecret)
+	if err != nil {
+		return err
+	}
+
 	// Send the raw server public key to the client.
 	serverPublicKey := serverPrivateKey.PublicKey().Bytes()
 	_, err = serverConn.WriteToUDP(serverPublicKey, clientAddr)
@@ -89,7 +109,7 @@ func LaunchFreePN() error {
 				return
 			}
 
-			packet, err := auth.Decrypt(sharedSecret, buffer[:n])
+			packet, err := auth.Decrypt(decryptCipher, buffer[:n])
 			if err != nil {
 				log.Println("Packet decryption error: " + err.Error())
 				continue
@@ -125,11 +145,7 @@ func LaunchFreePN() error {
 			return err
 		}
 
-		encrypted, err := auth.Encrypt(sharedSecret, writeBuffer[:n])
-		if err != nil {
-			log.Println("Error encrypting packet: " + err.Error())
-			continue
-		}
+		encrypted := auth.Encrypt(encryptCipher, writeBuffer[:n])
 
 		clientAddrMu.RLock()
 		destination := clientAddr

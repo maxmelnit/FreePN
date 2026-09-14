@@ -5,24 +5,56 @@ package vpn
 import (
 	"client/auth"
 	"client/tun"
+	"encoding/json"
 	"errors"
 	"log"
 	"net"
+	"os"
 )
 
-var SERVER string = "40.233.106.54:55555"
+type Config struct {
+	host string `json:server_address`
+	port string `json:server_port`
+}
 
 const udpBufferSize = 4 * 1024 * 1024
 
 // LaunchClient launches the client-side of the VPN
 func LaunchClient() error {
 
-	// Open TUN
-	fd, err := tun.OpenTUN("client-tun")
+	// Load config.json information
+	var Config config
+	json_data, err := os.ReadFile("./config.json")
 	if err != nil {
 		return err
 	}
+	err := json.Unmarshal(json_data, &Config)
+	if err != nil {
+		return err
+	}
+
+	host := Config.host
+	port := Config.port
+
+	log.Println("Found server in configuration file. Connecting to: " + Config.host + ":" + Config.port)
+
+	// Open TUN
+	fd, err := tun.OpenTUN("client-tun")
+	if err != nil {
+
+		return err
+	}
 	defer fd.Close()
+
+	// Configure TUN with custom settings
+	err = tun.ConfigureTUN(
+		"client-tun",
+		"10.8.0.2/24",
+		tun.MTU,
+	)
+	if err != nil {
+		return err
+	}
 
 	// Get or create a new private client key
 	clientPrivateKey, err := auth.LoadOrCreateClientKey("./keys/client.key")
@@ -31,7 +63,7 @@ func LaunchClient() error {
 	}
 
 	// Dial the server
-	serverAddr, err := net.ResolveUDPAddr("udp", SERVER)
+	serverAddr, err := net.ResolveUDPAddr("udp", host+":"+port)
 	if err != nil {
 		return err
 	}
@@ -73,6 +105,16 @@ func LaunchClient() error {
 		return err
 	}
 
+	encryptCipher, err := auth.NewPacketCipher(sharedSecret)
+	if err != nil {
+		return err
+	}
+
+	decryptCipher, err := auth.NewPacketCipher(sharedSecret)
+	if err != nil {
+		return err
+	}
+
 	// Goroutine helps prevent blocking during reading
 	go func() {
 
@@ -86,7 +128,7 @@ func LaunchClient() error {
 				return
 			}
 
-			packet, err := auth.Decrypt(sharedSecret, buffer[:n])
+			packet, err := auth.Decrypt(decryptCipher, buffer[:n])
 			if err != nil {
 				log.Println("Packet decryption error: " + err.Error())
 				continue
@@ -113,11 +155,7 @@ func LaunchClient() error {
 		}
 
 		// Encrypt the packet and send off to the server
-		encryptedPacket, err := auth.Encrypt(sharedSecret, writeBuffer[:n])
-		if err != nil {
-			log.Println("Packet encryption error: " + err.Error())
-			continue
-		}
+		encryptedPacket := auth.Encrypt(encryptCipher, writeBuffer[:n])
 
 		_, err = serverConn.Write(encryptedPacket)
 		if err != nil {
